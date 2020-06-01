@@ -4,15 +4,20 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.ReactContext;
 
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.pdf.PdfRenderer;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
+import android.provider.MediaStore;
+
 import androidx.annotation.RequiresApi;
 
 import org.json.JSONArray;
@@ -46,9 +51,25 @@ public class PdfModule extends ReactContextBaseJavaModule {
         callback.invoke("Received numberArgument: " + numberArgument + " stringArgument: " + stringArgument);
     }
 
+    private String getFilePathFromContentUri(Uri uri) {
+        String filePath;
+        String[] filePathColumn = {MediaStore.MediaColumns.DATA};
+
+        Cursor cursor = reactContext.getContentResolver().query(uri, filePathColumn, null, null, null);
+        cursor.moveToFirst();
+
+        int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+        filePath = cursor.getString(columnIndex);
+        cursor.close();
+        return filePath;
+    }
+
     @ReactMethod
-    public void convertPdf(String pdfPath, Callback callback) throws IOException {
+    public void convertPdf(String pdfPath, boolean isUri, Callback callback) throws IOException {
         ArrayList<Bitmap> bitmaps = new ArrayList<>();
+        if (isUri){
+            pdfPath = getFilePathFromContentUri(Uri.parse(pdfPath));
+        }
         File pdfFile = new File(pdfPath);
         if (pdfFile.exists()){
             try {
@@ -69,21 +90,24 @@ public class PdfModule extends ReactContextBaseJavaModule {
                     // close the page
                     page.close();
                 }
-                // close the renderer
-//                callback.invoke("存在"+ pageCount);
                 renderer.close();
             }catch (Exception e){
-                callback.invoke("存在"+ e);
+                callback.invoke("error");
             }
         }else {
-            callback.invoke("不存在"+pdfPath);
+            callback.invoke("error");
         }
-        JSONArray imgs = saveImg(bitmaps);
+        JSONArray imgs = saveImg(bitmaps, callback);
 //        System.out.println(imgs);
-        callback.invoke(imgs.toString());
+        if (imgs!=null){
+            callback.invoke(imgs.toString());
+        }else {
+            callback.invoke("error");
+        }
+
     }
 
-    private JSONArray saveImg(ArrayList<Bitmap> bitmaps){
+    private JSONArray saveImg(ArrayList<Bitmap> bitmaps, Callback callback){
         File saveDir = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "snapread_pdf");
         JSONArray Imgarray = new JSONArray();
         for (int i = 0; i<bitmaps.size();i++){
@@ -108,11 +132,14 @@ public class PdfModule extends ReactContextBaseJavaModule {
                 imgInfo.put("height",imgeH);
                 Imgarray.put(i,imgInfo);
             } catch (FileNotFoundException e) {
-                e.printStackTrace();
+                callback.invoke("error");
+//                e.printStackTrace();
             } catch (IOException e) {
-                e.printStackTrace();
+                callback.invoke("error");
+//                e.printStackTrace();
             } catch (JSONException e) {
-                e.printStackTrace();
+                callback.invoke("error");
+//                e.printStackTrace();
             }
 
         }

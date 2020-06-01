@@ -2,11 +2,11 @@
 
 ## Getting started
 
-`$ npm install react-native-pdf --save`
+`$ npm install react-native-qmaple-pdf --save`
 
 ### Mostly automatic installation
 
-`$ react-native link react-native-pdf`
+`$ react-native link react-native-qmaple-pdf`
 
 ## Usage
 ```javascript
