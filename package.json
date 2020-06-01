@@ -1,6 +1,6 @@
 {
   "name": "react-native-qmaple-pdf",
-  "title": "React Native Pdf",
+  "title": "React Native Qmaple Pdf",
   "version": "1.0.0",
   "description": "TODO",
   "main": "index.js",
@@ -16,8 +16,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/github_account/react-native-pdf.git",
-    "baseUrl": "https://github.com/github_account/react-native-pdf"
+    "url": "git+https://github.com/LhZzZz/react-native-pdf.git",
+    "baseUrl": "https://github.com/LhZzZz/react-native-pdf"
   },
   "keywords": [
     "react-native"
