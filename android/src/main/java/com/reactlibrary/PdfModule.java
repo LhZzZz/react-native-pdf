@@ -6,6 +6,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactContext;
 
+import android.content.ContentUris;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -16,6 +17,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 
 import androidx.annotation.RequiresApi;
@@ -53,14 +55,42 @@ public class PdfModule extends ReactContextBaseJavaModule {
 
     private String getFilePathFromContentUri(Uri uri) {
         String filePath;
-        String[] filePathColumn = {MediaStore.MediaColumns.DATA};
+        if (isExternalStorageDocument(uri)){
+            final String docId = DocumentsContract.getDocumentId(uri);
+            System.out.println("------docID "+ docId);
+            final String[] split = docId.split(":");
+            final String type = split[0];
+            System.out.println("getPath() docId:" + docId +", split:" + split.length +", type:" + type);
+            // This is for checking Main Memory
+            if ("primary".equalsIgnoreCase(type)) {
+                if (split.length > 1) {
+                    filePath =  Environment.getExternalStorageDirectory() +"/" + split[1] +"/";
+                } else {
+                    filePath =  Environment.getExternalStorageDirectory() +"/";
+                }
+                // This is for checking SD Card
+            } else {
+                filePath = "storage" +"/" + docId.replace(":","/");
+            }
+        } else if (isDownloadsDocument(uri)){
+            final String id = DocumentsContract.getDocumentId(uri);
+            final Uri contentUri = ContentUris.withAppendedId(
+                    Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
 
-        Cursor cursor = reactContext.getContentResolver().query(uri, filePathColumn, null, null, null);
-        cursor.moveToFirst();
-
-        int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
-        filePath = cursor.getString(columnIndex);
-        cursor.close();
+            String[] projection = { MediaStore.Images.Media.DATA };
+            Cursor cursor = reactContext.getContentResolver().query(contentUri, projection, null, null, null);
+            int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            cursor.moveToFirst();
+            filePath =  cursor.getString(column_index);
+        }else {
+            String[] filePathColumn = {MediaStore.MediaColumns.DATA};
+            Cursor cursor = reactContext.getContentResolver().query(uri, filePathColumn, null, null, null);
+            cursor.moveToFirst();
+            int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+            filePath = cursor.getString(columnIndex);
+            cursor.close();
+        }
+        System.out.println("------path: " + filePath);
         return filePath;
     }
 
@@ -70,41 +100,44 @@ public class PdfModule extends ReactContextBaseJavaModule {
         if (isUri){
             pdfPath = getFilePathFromContentUri(Uri.parse(pdfPath));
         }
-        File pdfFile = new File(pdfPath);
-        if (pdfFile.exists()){
-            try {
-                PdfRenderer renderer = new PdfRenderer(ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY));
-                Bitmap bitmap;
-                final int pageCount = renderer.getPageCount();
-                for (int p = 0; p < pageCount; p++){
-                    PdfRenderer.Page page = renderer.openPage(p);
-                    int width = page.getWidth();
-                    int height = page.getHeight();
-                    bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-                    Canvas canvas = new Canvas(bitmap);
-                    canvas.drawColor(Color.WHITE);
-                    canvas.drawBitmap(bitmap, 0, 0, null);
-                    Rect r = new Rect(0, 0, width, height);
-                    page.render(bitmap, r, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-                    bitmaps.add(bitmap);
-                    // close the page
-                    page.close();
+        if (pdfPath!=null){
+            File pdfFile = new File(pdfPath);
+            if (pdfFile.exists()){
+                try {
+                    PdfRenderer renderer = new PdfRenderer(ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY));
+                    Bitmap bitmap;
+                    final int pageCount = renderer.getPageCount();
+                    for (int p = 0; p < pageCount; p++){
+                        PdfRenderer.Page page = renderer.openPage(p);
+                        int width = page.getWidth();
+                        int height = page.getHeight();
+                        bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                        Canvas canvas = new Canvas(bitmap);
+                        canvas.drawColor(Color.WHITE);
+                        canvas.drawBitmap(bitmap, 0, 0, null);
+                        Rect r = new Rect(0, 0, width, height);
+                        page.render(bitmap, r, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                        bitmaps.add(bitmap);
+                        // close the page
+                        page.close();
+                    }
+                    renderer.close();
+                }catch (Exception e){
+                    callback.invoke("error");
                 }
-                renderer.close();
-            }catch (Exception e){
+            }else {
                 callback.invoke("error");
             }
-        }else {
-            callback.invoke("error");
-        }
-        JSONArray imgs = saveImg(bitmaps, callback);
-//        System.out.println(imgs);
-        if (imgs!=null){
-            callback.invoke(imgs.toString());
-        }else {
-            callback.invoke("error");
-        }
+            JSONArray imgs = saveImg(bitmaps, callback);
+            if (imgs!=null){
+                callback.invoke(imgs.toString());
+            }else {
+                callback.invoke("error");
+            }
 
+        }else {
+            callback.invoke("error");
+        }
     }
 
     private JSONArray saveImg(ArrayList<Bitmap> bitmaps, Callback callback){
@@ -144,6 +177,14 @@ public class PdfModule extends ReactContextBaseJavaModule {
 
         }
         return Imgarray;
+    }
+
+    private static boolean isDownloadsDocument(Uri uri) {
+        return "com.android.providers.downloads.documents".equals(uri.getAuthority());
+    }
+
+    private static boolean isExternalStorageDocument(Uri uri) {
+        return "com.android.externalstorage.documents".equals(uri.getAuthority());
     }
 
 }
