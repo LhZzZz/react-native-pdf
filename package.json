@@ -1,7 +1,7 @@
 {
   "name": "react-native-qmaple-pdf",
   "title": "React Native Qmaple Pdf",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Convert each page of a PDF into images 将pdf的每一页转化为图片",
   "main": "index.js",
   "files": [
